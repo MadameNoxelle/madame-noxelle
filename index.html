@@ -40,39 +40,45 @@ a.exit{border:1px solid #63535b;background:transparent;color:#c8bdc6}
          const d=frame.contentDocument;
          const heroUrl=new URL('./5A21EC94-E094-4AFA-8C54-C98607C7DE87.png',location.href).href;
          const aboutUrl=new URL('./ECC9185C-E174-4785-9320-571AF7622641.png',location.href).href;
+         function setPhoto(img,url,alt){
+           if(!img)return;
+           img.removeAttribute('srcset');img.removeAttribute('sizes');
+           img.setAttribute('src',url);img.alt=alt;
+           img.style.setProperty('object-fit','cover','important');
+           img.style.setProperty('object-position','center','important');
+           const picture=img.closest('picture');
+           if(picture)picture.querySelectorAll('source').forEach(function(x){x.removeAttribute('srcset');x.removeAttribute('sizes');});
+         }
          function applyImages(){
            const hero=d.querySelector('.hero-photo');
            if(hero){
              hero.style.setProperty('background-image','url("'+heroUrl+'")','important');
              hero.style.setProperty('background-size','cover','important');
-             hero.style.setProperty('background-position','center center','important');
-             const imgs=hero.querySelectorAll('img');
-             imgs.forEach(function(img){
-               img.removeAttribute('srcset');img.removeAttribute('sizes');
-               img.src=heroUrl;img.alt='Madame Noxelle – neues Startseitenbild';
-               img.style.setProperty('object-fit','cover','important');
-               img.style.setProperty('object-position','center','important');
-             });
-             hero.querySelectorAll('source').forEach(function(source){source.removeAttribute('srcset');});
+             hero.querySelectorAll('img').forEach(function(i){setPhoto(i,heroUrl,'Neues Startseitenbild');});
            }
+           // The previous page has a large portrait below the headline.
+           // Replace the actual first prominent image even if its CSS selector differs.
+           const candidates=Array.from(d.querySelectorAll('img')).filter(function(img){
+             const rect=img.getBoundingClientRect();
+             return rect.width>=230 && rect.height>=250 && rect.top<2100 &&
+               !img.closest('header,nav,footer') && !img.closest('.hero-photo');
+           }).sort(function(x,y){return x.getBoundingClientRect().top-y.getBoundingClientRect().top;});
+           if(candidates[0])setPhoto(candidates[0],heroUrl,'Madame Noxelle – neues Startseitenbild');
            const about=d.querySelector('#about img');
-           if(about){
-             about.removeAttribute('srcset');about.removeAttribute('sizes');
-             about.src=aboutUrl;about.alt='Madame Noxelle – neues Porträt';
-           }
+           if(about && about!==candidates[0])setPhoto(about,aboutUrl,'Madame Noxelle – neues Porträt');
          }
          applyImages();
-         setTimeout(applyImages,350);
-         setTimeout(applyImages,1200);
+         setTimeout(applyImages,400);
+         setTimeout(applyImages,1500);
        }catch(e){console.error('Bildanpassung nicht möglich',e);}
      });
      site.appendChild(frame);
    }
    gate.hidden=true;gate.style.display='none';
  }
- try{if(sessionStorage.getItem('madame-noxelle-age-confirmed')==='yes')openSite();}catch(e){}
+ // Confirm age explicitly on every new page visit.
  document.getElementById('confirm-age').addEventListener('click',function(){
-   try{sessionStorage.setItem('madame-noxelle-age-confirmed','yes');}catch(e){}
+
    openSite();
  });
 })();
