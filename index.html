@@ -38,10 +38,32 @@ a.exit{border:1px solid #63535b;background:transparent;color:#c8bdc6}
      frame.addEventListener('load',function(){
        try{
          const d=frame.contentDocument;
-         const hero=d.querySelector('.hero-photo img');
-         if(hero){hero.src='./5A21EC94-E094-4AFA-8C54-C98607C7DE87.png';hero.alt='Madame Noxelle – Startseite';}
-         const about=d.querySelector('#about img');
-         if(about){about.src='./ECC9185C-E174-4785-9320-571AF7622641.png';about.alt='Madame Noxelle – Porträt';}
+         const heroUrl=new URL('./5A21EC94-E094-4AFA-8C54-C98607C7DE87.png',location.href).href;
+         const aboutUrl=new URL('./ECC9185C-E174-4785-9320-571AF7622641.png',location.href).href;
+         function applyImages(){
+           const hero=d.querySelector('.hero-photo');
+           if(hero){
+             hero.style.setProperty('background-image','url("'+heroUrl+'")','important');
+             hero.style.setProperty('background-size','cover','important');
+             hero.style.setProperty('background-position','center center','important');
+             const imgs=hero.querySelectorAll('img');
+             imgs.forEach(function(img){
+               img.removeAttribute('srcset');img.removeAttribute('sizes');
+               img.src=heroUrl;img.alt='Madame Noxelle – neues Startseitenbild';
+               img.style.setProperty('object-fit','cover','important');
+               img.style.setProperty('object-position','center','important');
+             });
+             hero.querySelectorAll('source').forEach(function(source){source.removeAttribute('srcset');});
+           }
+           const about=d.querySelector('#about img');
+           if(about){
+             about.removeAttribute('srcset');about.removeAttribute('sizes');
+             about.src=aboutUrl;about.alt='Madame Noxelle – neues Porträt';
+           }
+         }
+         applyImages();
+         setTimeout(applyImages,350);
+         setTimeout(applyImages,1200);
        }catch(e){console.error('Bildanpassung nicht möglich',e);}
      });
      site.appendChild(frame);
