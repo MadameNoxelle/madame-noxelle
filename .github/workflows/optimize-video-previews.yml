@@ -1,0 +1,82 @@
+name: Optimize Madame Noxelle video previews
+on:
+  push:
+    paths:
+      - '.github/workflows/optimize-video-previews.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Prepare ffmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -1
+      - name: Encode smaller browser-compatible videos and immediate preview images
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets/optimized
+          for original in copy_*.mov; do
+            [ -f "$original" ] || continue
+            stem="${original%.mov}"
+            mp4="assets/optimized/${stem}.mp4"
+            poster="assets/optimized/${stem}.jpg"
+            echo "Converting $original"
+            ffmpeg -hide_banner -loglevel error -y -i "$original" \
+              -map 0:v:0 -an \
+              -vf "fps=24,scale='trunc(min(960,iw)/2)*2':'trunc(ow/a/2)*2'" \
+              -c:v libx264 -preset medium -crf 24 -pix_fmt yuv420p \
+              -movflags +faststart "$mp4"
+            ffmpeg -hide_banner -loglevel error -y -ss 0.6 -i "$original" \
+              -frames:v 1 -vf "scale='trunc(min(960,iw)/2)*2':'trunc(ow/a/2)*2'" \
+              -q:v 5 "$poster" || ffmpeg -hide_banner -loglevel error -y -i "$original" -frames:v 1 -q:v 5 "$poster"
+            test -s "$mp4"
+            test -s "$poster"
+          done
+      - name: Point the existing page to MP4 files and visible posters
+        run: |
+          python3 - <<'PY'
+          import pathlib,re
+          page=pathlib.Path('index.html')
+          html=page.read_text(encoding='utf-8')
+          pattern=re.compile(r'<video(?P<attrs>[^>]*)><source src="./(?P<stem>copy_[A-Z0-9-]+)\.mov" type="video/quicktime"></video>')
+          def modify(m):
+              attrs=m.group('attrs')
+              stem=m.group('stem')
+              mp4=pathlib.Path('assets/optimized')/(stem+'.mp4')
+              poster=pathlib.Path('assets/optimized')/(stem+'.jpg')
+              if not mp4.is_file() or not poster.is_file():
+                  raise RuntimeError('Missing converted media: '+stem)
+              attrs=re.sub(r'\s+poster="[^"]*"', '', attrs)
+              attrs+=' poster="./assets/optimized/'+stem+'.jpg"'
+              if 'id="header-film"' not in attrs:
+                  attrs=attrs.replace('preload="auto"','preload="metadata"')
+              return '<video'+attrs+'><source src="./assets/optimized/'+stem+'.mp4" type="video/mp4"></video>'
+          html,n=pattern.subn(modify,html)
+          if n!=6:
+              raise RuntimeError('Expected 6 video elements, found '+str(n))
+          if 'id="mn-optimized-video-posters"' not in html:
+              html=html.replace('</head>', '<style id="mn-optimized-video-posters">video[poster]{background-color:#150c13;background-position:center;background-size:cover}</style></head>')
+          page.write_text(html,encoding='utf-8')
+          print('Updated',n,'video elements')
+          PY
+      - name: Commit optimized assets and video references
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html assets/optimized/
+          if ! git diff --cached --quiet; then
+            git commit -m "Optimize four video sources as MP4 with instant JPEG posters"
+            git push
+          fi
